@@ -305,12 +305,14 @@ function generateTextOutput() {
   o += `3. OVERALL RATING changes affect eligibility. If an evo boosts Overall from 87→88,\n`;
   o += `   the player can NO LONGER use evos that require "Overall ≤ 87". ORDER MATTERS.\n\n`;
 
-  o += `4. PLAYSTYLE REQUIREMENTS are checked BEFORE applying the evo.\n`;
-  o += `   - "PlayStyles ≤ N" = player must have ≤N regular PlayStyles to START the evo.\n`;
-  o += `   - "PlayStyle+ ≤ N" = player must have ≤N PlayStyle+ to START the evo.\n`;
-  o += `   - PlayStyle cap "requires ≤N PlayStyles" = that PS is only granted if count ≤N BEFORE.\n`;
-  o += `   - Duplicates: if the player already has that exact PlayStyle, it is NOT added again.\n`;
-  o += `   - After the evo, totals may exceed caps — that's fine, caps only gate ENTRY.\n\n`;
+  o += `4. PLAYSTYLE REQUIREMENTS AND CAPS:\n`;
+  o += `   - EVO ENTRY requirements ("PlayStyles ≤ N") = player must have ≤N to START the evo.\n`;
+  o += `   - PLAYSTYLE GRANT caps ("granted only if ≤N") = checked AT EACH LEVEL independently.\n`;
+  o += `   - Evos have multiple levels (e.g., Level 1, 2, 3). Each level may grant different PlayStyles.\n`;
+  o += `   - The cap for each PlayStyle is checked when that level is applied, NOT at evo start.\n`;
+  o += `   - Example: Level 1 gives "Technical (≤8 PS)", Level 2 gives "Technical+ (≤1 PS+)".\n`;
+  o += `   - If player already has a PlayStyle being granted, it's NOT added again.\n`;
+  o += `   - After applying levels, totals may exceed initial caps — that's fine.\n\n`;
 
   o += `5. PLAYSTYLE+ REPLACES THE REGULAR VERSION. If a player has "Intercept" (regular)\n`;
   o += `   and gains "Intercept+", the regular is REMOVED and replaced by the + version.\n`;
@@ -405,6 +407,11 @@ function generateTextOutput() {
 
   currentData.evolutions.forEach(evo => {
     o += `▼ ${evo.name}\n${'─'.repeat(80)}\n\n`;
+    
+    o += `⚠️  NOTE: Many evolutions have multiple LEVELS (e.g., Level 1, 2, 3).\n`;
+    o += `   Each level grants different upgrades and PlayStyles.\n`;
+    o += `   PlayStyle caps (e.g., "≤8 PlayStyles") are checked AT EACH LEVEL, not just at evo start.\n`;
+    o += `   The stats/PlayStyles shown below are TOTALS across all levels.\n\n`;
 
     // -- Requirements --
     o += `Requirements:\n`;
@@ -519,11 +526,11 @@ function generateTextOutput() {
           const baseName = ps.name.replace(/\+$/, '');
           const hasRegularVersion = psRegular.includes(baseName);
           o += `  • ${ps.name}`;
-          if (ps.cap) o += ` (requires ≤${ps.cap} PS+)`;
+          if (ps.cap) o += ` (granted only if ≤${ps.cap} PS+ at this level)`;
           if (alreadyHasPlus) {
             o += ` [ALREADY OWNED]`;
           } else if (ps.cap && totalPSPlus > parseInt(ps.cap)) {
-            o += ` [BLOCKED at base — ${totalPSPlus} PS+ > ${ps.cap}]`;
+            o += ` [MAY BE BLOCKED — currently ${totalPSPlus} PS+, but cap is checked PER LEVEL]`;
           } else if (hasRegularVersion) {
             o += ` [UPGRADES existing ${baseName} → ${ps.name}, regular PS count -1, PS+ count +1]`;
           }
@@ -535,11 +542,11 @@ function generateTextOutput() {
         reg.forEach(ps => {
           const alreadyHas = allPS.includes(ps.name);
           o += `  • ${ps.name}`;
-          if (ps.cap) o += ` (requires ≤${ps.cap} PlayStyles)`;
+          if (ps.cap) o += ` (granted only if ≤${ps.cap} PlayStyles at this level)`;
           if (alreadyHas) {
             o += ` [ALREADY OWNED — not added again]`;
           } else if (ps.cap && totalPSRegularOnly > parseInt(ps.cap)) {
-            o += ` [BLOCKED at base — ${totalPSRegularOnly} PS > ${ps.cap}, needs PS count reduction first]`;
+            o += ` [MAY BE BLOCKED — currently ${totalPSRegularOnly} PS, but cap is checked PER LEVEL]`;
           }
           o += `\n`;
         });
