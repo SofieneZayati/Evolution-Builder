@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EA FC Evolution Builder</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <span class="logo-icon">⚽</span>
+          <div>
+            <h1>Evo Builder</h1>
+            <p class="tagline">EA FC 26 Evolution Optimizer</p>
+          </div>
+        </div>
+        <button id="clearAll" class="icon-btn danger tooltip" title="Clear all data" style="display:none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="builder">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+        Builder
+      </button>
+      <button class="tab" data-tab="output">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Output
+      </button>
+    </nav>
+
+    <!-- Builder Tab -->
+    <main class="tab-content active" id="tab-builder">
+
+      <!-- Player Card -->
+      <section class="card player-card-section" id="playerSection">
+        <div class="card-header">
+          <h2><span class="label-icon">👤</span> Player</h2>
+          <button id="clearPlayer" class="icon-btn danger small" title="Remove player" style="display:none;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="playerDisplay">
+          <div class="empty-state">
+            <div class="empty-icon">👤</div>
+            <p>No player selected</p>
+            <span>Visit a Futbin player page and click<br><strong>"⚽ Add to Evo Builder"</strong></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Evolutions -->
+      <section class="card" id="evoSection">
+        <div class="card-header">
+          <h2><span class="label-icon">🔄</span> Evolutions <span class="counter" id="evoCount" style="display:none;">0</span></h2>
+          <button id="clearEvolutions" class="icon-btn danger small" title="Clear all evolutions" style="display:none;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="evolutionsDisplay">
+          <div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <p>No evolutions added</p>
+            <span>Visit Futbin evolution pages to add them</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Generate Button -->
+      <button id="generatePrompt" class="btn-generate" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Generate AI Prompt
+      </button>
+
+    </main>
+
+    <!-- Output Tab -->
+    <div class="tab-content" id="tab-output">
+      <section class="card output-card">
+        <div class="card-header">
+          <h2><span class="label-icon">📄</span> Generated Prompt</h2>
+          <div class="output-actions">
+            <button id="copyOutput" class="btn-copy" title="Copy to clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+        </div>
+        <div class="output-wrapper">
+          <div id="outputEmpty" class="empty-state">
+            <div class="empty-icon">⚡</div>
+            <p>No prompt generated yet</p>
+            <span>Add a player + evolutions, then click Generate</span>
+          </div>
+          <textarea id="outputText" readonly style="display:none;"></textarea>
+        </div>
+      </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <a href="https://www.futbin.com" target="_blank">Futbin.com</a> · EA FC 26
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
