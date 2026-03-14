@@ -142,13 +142,20 @@ function renderEvolutions() {
     // Requirements pills
     const reqs = [];
     if (evo.requirements.overall) reqs.push({ text: `OVR ≤ ${evo.requirements.overall}`, cls: '' });
+    if (evo.requirements.totalPositions) reqs.push({ text: `Total Pos ≤ ${evo.requirements.totalPositions}`, cls: '' });
     if (evo.requirements.playstyles) reqs.push({ text: `PS ≤ ${evo.requirements.playstyles}`, cls: '' });
     if (evo.requirements.playstylePlus) reqs.push({ text: `PS+ ≤ ${evo.requirements.playstylePlus}`, cls: '' });
     if (evo.requirements.pace) reqs.push({ text: `Pace ≤ ${evo.requirements.pace}`, cls: '' });
+    if (evo.requirements.shooting) reqs.push({ text: `Sho ≤ ${evo.requirements.shooting}`, cls: '' });
     if (evo.requirements.passing) reqs.push({ text: `Pass ≤ ${evo.requirements.passing}`, cls: '' });
+    if (evo.requirements.dribbling) reqs.push({ text: `Dri ≤ ${evo.requirements.dribbling}`, cls: '' });
+    if (evo.requirements.defending) reqs.push({ text: `Def ≤ ${evo.requirements.defending}`, cls: '' });
+    if (evo.requirements.physical) reqs.push({ text: `Phy ≤ ${evo.requirements.physical}`, cls: '' });
+    if (evo.requirements.shotPower) reqs.push({ text: `ShotPow ≤ ${evo.requirements.shotPower}`, cls: '' });
     if (evo.requirements.position) reqs.push({ text: evo.requirements.position, cls: 'position' });
     if (evo.requirements.notPosition) reqs.push({ text: `Not ${evo.requirements.notPosition}`, cls: 'negative' });
-    if (evo.requirements.rarity) reqs.push({ text: evo.requirements.rarity, cls: 'negative' });
+    if (evo.requirements.notRarity) reqs.push({ text: `Not Rarity: ${evo.requirements.notRarity}`, cls: 'negative' });
+    else if (evo.requirements.rarity) reqs.push({ text: evo.requirements.rarity, cls: 'negative' });
 
     const reqsHTML = reqs.map(r => `<span class="req-pill ${r.cls}">${r.text}</span>`).join('');
 
@@ -267,11 +274,50 @@ function generateTextOutput() {
   const player = currentData.player;
   const stats = player.stats || {};
   let o = '';
+  
+  function parseNum(v) {
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) ? null : n;
+  }
+  
+  function printRequirements(reqs) {
+    const capReqs = [
+      { key: 'overall', label: 'Overall' },
+      { key: 'pace', label: 'Pace' },
+      { key: 'shooting', label: 'Shooting' },
+      { key: 'passing', label: 'Passing' },
+      { key: 'dribbling', label: 'Dribbling' },
+      { key: 'defending', label: 'Defending' },
+      { key: 'physical', label: 'Physical' },
+      { key: 'shotPower', label: 'Shot Power' },
+      { key: 'totalPositions', label: 'Total Positions' }
+    ];
+
+    capReqs.forEach(({ key, label }) => {
+      if (reqs[key]) o += `  • ${label} ≤ ${reqs[key]}\n`;
+    });
+
+    if (reqs.playstyles) o += `  • PlayStyles ≤ ${reqs.playstyles}\n`;
+    if (reqs.playstylePlus) o += `  • PlayStyle+ ≤ ${reqs.playstylePlus}\n`;
+    if (reqs.position) o += `  • Position: ${reqs.position}\n`;
+    if (reqs.notPosition) o += `  • Not Position: ${reqs.notPosition}\n`;
+    if (reqs.notRarity) o += `  • Not Rarity: ${reqs.notRarity}\n`;
+    else if (reqs.rarity) o += `  • ${reqs.rarity}\n`;
+
+    if (Array.isArray(reqs.extra)) {
+      reqs.extra.forEach(extraReq => {
+        if (extraReq && extraReq.label && extraReq.value) {
+          o += `  • ${extraReq.label}: ${extraReq.value}\n`;
+        }
+      });
+    }
+  }
 
   // ── Count current PlayStyles ──
   const allPS = player.playstyles || [];
   const psPlus = allPS.filter(ps => ps.endsWith('+'));
   const psRegular = allPS.filter(ps => !ps.endsWith('+'));
+  const playerPositions = new Set([player.position, ...(player.roles || []).map(r => r.position)].filter(Boolean));
   const totalPS = allPS.length;
   const totalPSPlus = psPlus.length;
   // Regular count excludes PS+ since in-game they're tracked separately
@@ -307,12 +353,13 @@ function generateTextOutput() {
 
   o += `4. PLAYSTYLE REQUIREMENTS AND CAPS:\n`;
   o += `   - EVO ENTRY requirements ("PlayStyles ≤ N") = player must have ≤N to START the evo.\n`;
-  o += `   - PLAYSTYLE GRANT caps ("granted only if ≤N") = checked AT EACH LEVEL independently.\n`;
+  o += `   - PLAYSTYLE GRANT caps ("cap N") = the PlayStyle brings your count UP TO N maximum.\n`;
+  o += `   - If cap is N, you need LESS THAN N to receive it (not ≤N). Example: cap 1 means you need 0.\n`;
   o += `   - Evos have multiple levels (e.g., Level 1, 2, 3). Each level may grant different PlayStyles.\n`;
   o += `   - The cap for each PlayStyle is checked when that level is applied, NOT at evo start.\n`;
-  o += `   - Example: Level 1 gives "Technical (≤8 PS)", Level 2 gives "Technical+ (≤1 PS+)".\n`;
+  o += `   - Example: "Technical+ (cap 1)" = only granted if you have 0 PS+ at that level.\n`;
   o += `   - If player already has a PlayStyle being granted, it's NOT added again.\n`;
-  o += `   - After applying levels, totals may exceed initial caps — that's fine.\n\n`;
+  o += `   - After applying levels, totals may exceed initial entry requirements — that's fine.\n\n`;
 
   o += `5. PLAYSTYLE+ REPLACES THE REGULAR VERSION. If a player has "Intercept" (regular)\n`;
   o += `   and gains "Intercept+", the regular is REMOVED and replaced by the + version.\n`;
@@ -410,24 +457,14 @@ function generateTextOutput() {
     
     o += `⚠️  NOTE: Many evolutions have multiple LEVELS (e.g., Level 1, 2, 3).\n`;
     o += `   Each level grants different upgrades and PlayStyles.\n`;
-    o += `   PlayStyle caps (e.g., "≤8 PlayStyles") are checked AT EACH LEVEL, not just at evo start.\n`;
+    o += `   PlayStyle caps work as "UP TO" limits: cap N means you need < N to receive it.\n`;
+    o += `   Example: "Technical+ (cap 1)" = only granted if you have 0 PS+ at that level.\n`;
     o += `   The stats/PlayStyles shown below are TOTALS across all levels.\n\n`;
 
     // -- Requirements --
     o += `Requirements:\n`;
     const reqs = evo.requirements;
-    if (reqs.overall) o += `  • Overall ≤ ${reqs.overall}\n`;
-    if (reqs.playstyles) o += `  • PlayStyles ≤ ${reqs.playstyles}\n`;
-    if (reqs.playstylePlus) o += `  • PlayStyle+ ≤ ${reqs.playstylePlus}\n`;
-    if (reqs.pace) o += `  • Pace ≤ ${reqs.pace}\n`;
-    if (reqs.passing) o += `  • Passing ≤ ${reqs.passing}\n`;
-    if (reqs.shooting) o += `  • Shooting ≤ ${reqs.shooting}\n`;
-    if (reqs.dribbling) o += `  • Dribbling ≤ ${reqs.dribbling}\n`;
-    if (reqs.defending) o += `  • Defending ≤ ${reqs.defending}\n`;
-    if (reqs.physical) o += `  • Physical ≤ ${reqs.physical}\n`;
-    if (reqs.position) o += `  • Position: ${reqs.position}\n`;
-    if (reqs.notPosition) o += `  • Not Position: ${reqs.notPosition}\n`;
-    if (reqs.rarity) o += `  • ${reqs.rarity}\n`;
+    printRequirements(reqs);
 
     // -- Stat Upgrades (with current values for context) --
     // Alias map: evolution pages sometimes use different names than the player stats page
@@ -526,11 +563,11 @@ function generateTextOutput() {
           const baseName = ps.name.replace(/\+$/, '');
           const hasRegularVersion = psRegular.includes(baseName);
           o += `  • ${ps.name}`;
-          if (ps.cap) o += ` (granted only if ≤${ps.cap} PS+ at this level)`;
+          if (ps.cap) o += ` (cap ${ps.cap} = granted only if PS+ < ${ps.cap} at this level)`;
           if (alreadyHasPlus) {
             o += ` [ALREADY OWNED]`;
-          } else if (ps.cap && totalPSPlus > parseInt(ps.cap)) {
-            o += ` [MAY BE BLOCKED — currently ${totalPSPlus} PS+, but cap is checked PER LEVEL]`;
+          } else if (ps.cap && totalPSPlus >= parseInt(ps.cap)) {
+            o += ` [BLOCKED — currently ${totalPSPlus} PS+, need < ${ps.cap}]`;
           } else if (hasRegularVersion) {
             o += ` [UPGRADES existing ${baseName} → ${ps.name}, regular PS count -1, PS+ count +1]`;
           }
@@ -542,11 +579,11 @@ function generateTextOutput() {
         reg.forEach(ps => {
           const alreadyHas = allPS.includes(ps.name);
           o += `  • ${ps.name}`;
-          if (ps.cap) o += ` (granted only if ≤${ps.cap} PlayStyles at this level)`;
+          if (ps.cap) o += ` (cap ${ps.cap} = granted only if PS < ${ps.cap} at this level)`;
           if (alreadyHas) {
             o += ` [ALREADY OWNED — not added again]`;
-          } else if (ps.cap && totalPSRegularOnly > parseInt(ps.cap)) {
-            o += ` [MAY BE BLOCKED — currently ${totalPSRegularOnly} PS, but cap is checked PER LEVEL]`;
+          } else if (ps.cap && totalPSRegularOnly >= parseInt(ps.cap)) {
+            o += ` [BLOCKED — currently ${totalPSRegularOnly} PS, need < ${ps.cap}]`;
           }
           o += `\n`;
         });
@@ -597,17 +634,37 @@ function generateTextOutput() {
       checks.push(`Pace ${paceVal}≤${reqs.pace}: ${pass ? '✓' : '✗'}`);
       if (!pass) eligible = false;
     }
+    
+    if (reqs.shooting) {
+      const val = parseInt(stats['Shooting'] || 0);
+      const pass = val <= parseInt(reqs.shooting);
+      checks.push(`Sho ${val}≤${reqs.shooting}: ${pass ? '✓' : '✗'}`);
+      if (!pass) eligible = false;
+    }
+    
     if (reqs.passing) {
       const passVal = parseInt(stats['Passing'] || 0);
       const pass = passVal <= parseInt(reqs.passing);
       checks.push(`Pass ${passVal}≤${reqs.passing}: ${pass ? '✓' : '✗'}`);
       if (!pass) eligible = false;
     }
-    if (reqs.shooting) {
-      const val = parseInt(stats['Shooting'] || 0);
-      const pass = val <= parseInt(reqs.shooting);
-      checks.push(`Sho ${val}≤${reqs.shooting}: ${pass ? '✓' : '✗'}`);
+    
+    if (reqs.shotPower) {
+      const val = parseInt(stats['Shot Power'] || 0);
+      const pass = val <= parseInt(reqs.shotPower);
+      checks.push(`ShotPow ${val}≤${reqs.shotPower}: ${pass ? '✓' : '✗'}`);
       if (!pass) eligible = false;
+    }
+    
+    if (reqs.totalPositions) {
+      const posCount = parseNum(player.details?.totalPositions);
+      if (posCount === null) {
+        checks.push(`TotalPos ?≤${reqs.totalPositions}: ?`);
+      } else {
+        const pass = posCount <= parseInt(reqs.totalPositions);
+        checks.push(`TotalPos ${posCount}≤${reqs.totalPositions}: ${pass ? '✓' : '✗'}`);
+        if (!pass) eligible = false;
+      }
     }
     if (reqs.dribbling) {
       const val = parseInt(stats['Dribbling'] || 0);
@@ -625,6 +682,18 @@ function generateTextOutput() {
       const val = parseInt(stats['Physical'] || 0);
       const pass = val <= parseInt(reqs.physical);
       checks.push(`Phy ${val}≤${reqs.physical}: ${pass ? '✓' : '✗'}`);
+      if (!pass) eligible = false;
+    }
+
+    if (reqs.position) {
+      const pass = playerPositions.has(reqs.position);
+      checks.push(`Pos has ${reqs.position}: ${pass ? '✓' : '✗'}`);
+      if (!pass) eligible = false;
+    }
+
+    if (reqs.notPosition) {
+      const pass = !playerPositions.has(reqs.notPosition);
+      checks.push(`Pos not ${reqs.notPosition}: ${pass ? '✓' : '✗'}`);
       if (!pass) eligible = false;
     }
 
@@ -671,14 +740,20 @@ function generateTextOutput() {
       }
     }
 
-    // Count new PS this evo adds
+    // Count new regular PS this evo can add from base context (cap-aware, sequential)
     let psAdded = 0;
     if (evo.playstyles) {
       const norm = evo.playstyles.map(ps => typeof ps === 'string' ? { name: ps, cap: '' } : ps);
+      const tempOwned = new Set(psRegular);
+      let tempRegularCount = totalPSRegularOnly;
       norm.forEach(ps => {
-        if (!ps.name.endsWith('+') && !allPS.includes(ps.name)) {
+        if (!ps.name.endsWith('+') && !tempOwned.has(ps.name)) {
           const psCap = ps.cap ? parseInt(ps.cap) : 999;
-          if (totalPSRegularOnly <= psCap) psAdded++;
+          if (tempRegularCount < psCap) {
+            psAdded++;
+            tempOwned.add(ps.name);
+            tempRegularCount++;
+          }
         }
       });
     }

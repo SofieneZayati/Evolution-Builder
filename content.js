@@ -108,12 +108,36 @@ function extractPlayerData() {
     });
     console.log('Roles:', playerData.roles.length);
 
+    // --- Total positions ---
+    // Prefer unique positions from the roles section, which matches what users see
+    // on player pages (e.g., ST + LW for Henry). Fallback to main-card alt positions.
+    const allPositions = new Set();
+    if (playerData.position) allPositions.add(playerData.position);
+
+    if (playerData.roles.length > 0) {
+      playerData.roles.forEach(r => {
+        if (r.position) allPositions.add(r.position);
+      });
+    } else {
+      // Scope alt positions to the same player card as the main position element.
+      // The page often contains many other cards (related players/evos), which would
+      // otherwise inflate this count and break Total Positions eligibility checks.
+      const mainCard = positionEl?.closest('.playercard-26') || document.querySelector('.playercard-26');
+      if (mainCard) {
+        mainCard.querySelectorAll('.playercard-26-alt-pos-sub').forEach(el => {
+          const p = el.textContent.trim();
+          if (p) allPositions.add(p);
+        });
+      }
+    }
+
     // --- Details ---
     playerData.details = {
       skillMoves: (pageText.match(/Skills\s+(\d+)/) || [])[1] || '',
       weakFoot: (pageText.match(/Weak Foot\s+(\d+)/) || [])[1] || '',
       height: (pageText.match(/Height\s+([^\n]+)/) || [])[1]?.trim() || '',
-      foot: (pageText.match(/Foot\s+(\w+)/) || [])[1] || ''
+      foot: (pageText.match(/Foot\s+(\w+)/) || [])[1] || '',
+      totalPositions: allPositions.size ? String(allPositions.size) : ''
     };
 
     console.log('=== PLAYER EXTRACTION COMPLETE ===');
@@ -154,6 +178,23 @@ function extractEvolutionData() {
     // This section uses .m-row elements (NOT .evo-upgrade-row)
     // ─────────────────────────────────────────────────────────────────
     const reqContainer = document.querySelector('.summary-requirements');
+    const reqKeyMap = {
+      'Overall': 'overall',
+      'Pace': 'pace',
+      'Shooting': 'shooting',
+      'Passing': 'passing',
+      'Dribbling': 'dribbling',
+      'Defending': 'defending',
+      'Physical': 'physical',
+      'Shot Power': 'shotPower',
+      'Total Positions': 'totalPositions'
+    };
+
+    function pushExtraRequirement(label, value) {
+      if (!evolutionData.requirements.extra) evolutionData.requirements.extra = [];
+      evolutionData.requirements.extra.push({ label, value });
+    }
+
     if (reqContainer) {
       console.log('Found requirements container (DOM)');
       reqContainer.querySelectorAll('.m-row').forEach(row => {
@@ -165,22 +206,24 @@ function extractEvolutionData() {
         const value = valueEl.textContent.trim();
         console.log('  Requirement:', label, '→', value);
 
-        if (label === 'Overall') {
-          evolutionData.requirements.overall = value.replace(/Max\s*/i, '').trim();
-        } else if (label === 'Pace') {
-          evolutionData.requirements.pace = value.replace(/Max\s*/i, '').trim();
-        } else if (label === 'Passing') {
-          evolutionData.requirements.passing = value.replace(/Max\s*/i, '').trim();
-        } else if (label === 'Not Position') {
+        const normalizedMax = value.replace(/Max\s*/i, '').trim();
+        const hasMax = /max\s*\d+/i.test(value);
+
+        if (label === 'Not Position') {
           evolutionData.requirements.notPosition = value;
         } else if (label === 'Position') {
           evolutionData.requirements.position = value;
         } else if (label === 'Not Rarity') {
+          evolutionData.requirements.notRarity = value;
           evolutionData.requirements.rarity = 'Not Rarity: ' + value;
         } else if (label.includes('PlayStyle') && label.includes('+')) {
-          evolutionData.requirements.playstylePlus = value.replace(/Max\s*/i, '').trim();
+          evolutionData.requirements.playstylePlus = normalizedMax;
         } else if (label.includes('PlayStyle') && !label.includes('+')) {
-          evolutionData.requirements.playstyles = value.replace(/Max\s*/i, '').trim();
+          evolutionData.requirements.playstyles = normalizedMax;
+        } else if (hasMax && reqKeyMap[label]) {
+          evolutionData.requirements[reqKeyMap[label]] = normalizedMax;
+        } else {
+          pushExtraRequirement(label, value);
         }
       });
     } else {
@@ -201,12 +244,39 @@ function extractEvolutionData() {
         const paceMatch = reqText.match(/Pace\s+Max\s+(\d+)/i);
         if (paceMatch) evolutionData.requirements.pace = paceMatch[1];
 
+        const passingMatch = reqText.match(/Passing\s+Max\s+(\d+)/i);
+        if (passingMatch) evolutionData.requirements.passing = passingMatch[1];
+
+        const shootingMatch = reqText.match(/Shooting\s+Max\s+(\d+)/i);
+        if (shootingMatch) evolutionData.requirements.shooting = shootingMatch[1];
+
+        const dribblingMatch = reqText.match(/Dribbling\s+Max\s+(\d+)/i);
+        if (dribblingMatch) evolutionData.requirements.dribbling = dribblingMatch[1];
+
+        const defendingMatch = reqText.match(/Defending\s+Max\s+(\d+)/i);
+        if (defendingMatch) evolutionData.requirements.defending = defendingMatch[1];
+
+        const physicalMatch = reqText.match(/Physical\s+Max\s+(\d+)/i);
+        if (physicalMatch) evolutionData.requirements.physical = physicalMatch[1];
+
+        const shotPowerMatch = reqText.match(/Shot\s*Power\s+Max\s+(\d+)/i);
+        if (shotPowerMatch) evolutionData.requirements.shotPower = shotPowerMatch[1];
+
+        const totalPositionsMatch = reqText.match(/Total\s*Positions\s+Max\s+(\d+)/i);
+        if (totalPositionsMatch) evolutionData.requirements.totalPositions = totalPositionsMatch[1];
+
         const notPosMatch = reqText.match(/Not Position\s+([\w\s]+?)(?=\n|$)/i);
         if (notPosMatch) {
           evolutionData.requirements.notPosition = notPosMatch[1].trim();
         } else {
           const posMatch = reqText.match(/(?:^|\n)\s*Position\s+([^\n]+)/i);
           if (posMatch) evolutionData.requirements.position = posMatch[1].trim();
+        }
+
+        const notRarityMatch = reqText.match(/Not Rarity\s+([^\n]+)/i);
+        if (notRarityMatch) {
+          evolutionData.requirements.notRarity = notRarityMatch[1].trim();
+          evolutionData.requirements.rarity = 'Not Rarity: ' + notRarityMatch[1].trim();
         }
       }
     }
