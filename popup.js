@@ -1,6 +1,6 @@
 // EA FC Evolution Builder – Popup Script
 
-let currentData = { player: null, evolutions: [] };
+let currentData = { player: null, evolutions: [], comparePlayers: [] };
 
 // ═══════════════════════════════════════════════════════════
 // INIT
@@ -14,9 +14,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupEventListeners() {
   document.getElementById('generatePrompt').addEventListener('click', generatePrompt);
+  document.getElementById('generateComparePrompt').addEventListener('click', generateComparePrompt);
   document.getElementById('copyOutput').addEventListener('click', copyToClipboard);
   document.getElementById('clearPlayer').addEventListener('click', clearPlayer);
   document.getElementById('clearEvolutions').addEventListener('click', clearEvolutions);
+  document.getElementById('clearComparePlayers').addEventListener('click', clearComparePlayers);
   document.getElementById('clearAll').addEventListener('click', clearAllData);
 }
 
@@ -38,7 +40,11 @@ function setupTabs() {
 function loadData() {
   chrome.runtime.sendMessage({ action: 'getData' }, (response) => {
     if (response && response.success) {
-      currentData = response.data;
+      currentData = {
+        player: response.data?.player || null,
+        evolutions: Array.isArray(response.data?.evolutions) ? response.data.evolutions : [],
+        comparePlayers: Array.isArray(response.data?.comparePlayers) ? response.data.comparePlayers : []
+      };
       updateUI();
     }
   });
@@ -47,15 +53,18 @@ function loadData() {
 function updateUI() {
   renderPlayer();
   renderEvolutions();
+  renderComparePlayers();
   updateGenerateButton();
   // Show/hide clear all
   document.getElementById('clearAll').style.display =
-    (currentData.player || currentData.evolutions.length > 0) ? 'flex' : 'none';
+    (currentData.player || currentData.evolutions.length > 0 || (currentData.comparePlayers || []).length > 0) ? 'flex' : 'none';
 }
 
 function updateGenerateButton() {
   document.getElementById('generatePrompt').disabled =
     !(currentData.player && currentData.evolutions.length > 0);
+  document.getElementById('generateComparePrompt').disabled =
+    !((currentData.comparePlayers || []).length >= 2);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -214,6 +223,114 @@ function renderEvolutions() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// RENDER – Comparison
+// ═══════════════════════════════════════════════════════════
+
+function renderComparePlayers() {
+  const players = currentData.comparePlayers || [];
+  const grid = document.getElementById('comparePlayersGrid');
+  const tableWrap = document.getElementById('compareTableWrap');
+  const clearBtn = document.getElementById('clearComparePlayers');
+  const countBadge = document.getElementById('compareCount');
+
+  if (!players.length) {
+    clearBtn.style.display = 'none';
+    countBadge.style.display = 'none';
+    tableWrap.style.display = 'none';
+    grid.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">⚖️</div>
+        <p>No compare players yet</p>
+        <span>Open player pages and click<br><strong>"⚖️ Add to Compare"</strong></span>
+      </div>`;
+    return;
+  }
+
+  clearBtn.style.display = 'flex';
+  countBadge.style.display = 'inline';
+  countBadge.textContent = players.length;
+
+  const faceStats = ['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defending', 'Physical'];
+  const shortMap = { Pace: 'PAC', Shooting: 'SHO', Passing: 'PAS', Dribbling: 'DRI', Defending: 'DEF', Physical: 'PHY' };
+
+  grid.innerHTML = players.map((player, i) => {
+    const faceHTML = faceStats.map(stat => `
+      <div class="compare-face-item">
+        <div class="compare-face-val">${player.stats?.[stat] || '—'}</div>
+        <div class="compare-face-key">${shortMap[stat]}</div>
+      </div>
+    `).join('');
+
+    return `
+      <div class="compare-player-card">
+        <div class="compare-player-head">
+          <div>
+            <div class="compare-player-name">${player.name || 'Unknown Player'}</div>
+            <div class="compare-player-meta">${player.rating || '—'} ${player.position || '—'}${player.nation ? ` · ${player.nation}` : ''}</div>
+          </div>
+          <button class="compare-remove-btn" data-index="${i}" title="Remove">✕</button>
+        </div>
+        <div class="compare-face-row">${faceHTML}</div>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('.compare-remove-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      removeComparePlayer(parseInt(e.currentTarget.dataset.index, 10));
+    });
+  });
+
+  if (players.length < 2) {
+    tableWrap.style.display = 'none';
+    return;
+  }
+
+  const compareStats = [
+    'Pace', 'Acceleration', 'Sprint Speed',
+    'Shooting', 'Att. Position', 'Finishing', 'Shot Power', 'Long Shots', 'Volleys', 'Penalties',
+    'Passing', 'Vision', 'Crossing', 'FK Acc.', 'Short Pass', 'Long Pass', 'Curve',
+    'Dribbling', 'Agility', 'Balance', 'Reactions', 'Ball Control', 'Composure',
+    'Defending', 'Interceptions', 'Heading Acc.', 'Def. Aware', 'Stand Tackle', 'Slide Tackle',
+    'Physical', 'Jumping', 'Stamina', 'Strength', 'Aggression'
+  ];
+
+  function toNum(v) {
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) ? null : n;
+  }
+
+  const headerCells = players.map(p => `<th>${p.name || 'Player'}</th>`).join('');
+  const rowHTML = compareStats.map(stat => {
+    const values = players.map(p => toNum(p.stats?.[stat]));
+    const numericValues = values.filter(v => v !== null);
+    const maxValue = numericValues.length ? Math.max(...numericValues) : null;
+
+    const valueCells = players.map((p, idx) => {
+      const raw = p.stats?.[stat] || '—';
+      const isWin = values[idx] !== null && maxValue !== null && values[idx] === maxValue;
+      const cls = isWin ? 'compare-win' : 'compare-lose';
+      return `<td class="${cls}">${raw}</td>`;
+    }).join('');
+
+    return `<tr><td>${stat}</td>${valueCells}</tr>`;
+  }).join('');
+
+  tableWrap.innerHTML = `
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Stat</th>
+          ${headerCells}
+        </tr>
+      </thead>
+      <tbody>${rowHTML}</tbody>
+    </table>
+  `;
+  tableWrap.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════════
 // ACTIONS
 // ═══════════════════════════════════════════════════════════
 
@@ -239,7 +356,19 @@ function clearPlayer() {
 }
 
 function clearEvolutions() {
-  chrome.runtime.sendMessage({ action: 'clearData' }, () => loadData());
+  chrome.runtime.sendMessage({ action: 'clearEvolutions' }, () => loadData());
+}
+
+function removeComparePlayer(index) {
+  chrome.runtime.sendMessage({ action: 'removeComparePlayer', index }, (res) => {
+    if (res && res.success) loadData();
+  });
+}
+
+function clearComparePlayers() {
+  chrome.runtime.sendMessage({ action: 'clearComparePlayers' }, (res) => {
+    if (res && res.success) loadData();
+  });
 }
 
 function clearAllData() {
@@ -255,6 +384,22 @@ function clearAllData() {
 function generatePrompt() {
   const output = generateTextOutput();
 
+  showOutput(output, 'Generated Evolution Prompt');
+  showToast('✓ Evolution prompt generated!', 'success');
+}
+
+function generateComparePrompt() {
+  const output = generateCompareOutput();
+  showOutput(output, 'Generated Comparison Prompt');
+  showToast('✓ Comparison prompt generated!', 'success');
+}
+
+function showOutput(output, title = 'Generated Prompt') {
+  const outputTitle = document.getElementById('outputTitle');
+  if (outputTitle) {
+    outputTitle.innerHTML = `<span class="label-icon">📄</span> ${title}`;
+  }
+
   // Switch to output tab
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -266,8 +411,6 @@ function generatePrompt() {
   textArea.value = output;
   textArea.style.display = 'block';
   empty.style.display = 'none';
-
-  showToast('✓ Prompt generated!', 'success');
 }
 
 function generateTextOutput() {
@@ -825,6 +968,72 @@ function generateTextOutput() {
   o += `- Repeatable evos can be used multiple times — consider this.\n`;
   o += `- Don't forget ANY evo exists. After finding a chain, go through the evo list and confirm\n`;
   o += `  each one was either used or is truly ineligible at every possible insertion point.\n`;
+
+  return o;
+}
+
+function generateCompareOutput() {
+  const players = currentData.comparePlayers || [];
+  if (players.length < 2) {
+    return 'Add at least 2 players in the Compare tab to generate a comparison prompt.';
+  }
+
+  const compareStats = {
+    Pace: ['Acceleration', 'Sprint Speed'],
+    Shooting: ['Att. Position', 'Finishing', 'Shot Power', 'Long Shots', 'Volleys', 'Penalties'],
+    Passing: ['Vision', 'Crossing', 'FK Acc.', 'Short Pass', 'Long Pass', 'Curve'],
+    Dribbling: ['Agility', 'Balance', 'Reactions', 'Ball Control', 'Dribbling', 'Composure'],
+    Defending: ['Interceptions', 'Heading Acc.', 'Def. Aware', 'Stand Tackle', 'Slide Tackle'],
+    Physical: ['Jumping', 'Stamina', 'Strength', 'Aggression']
+  };
+
+  let o = '';
+  o += `I want you to compare these EA FC 26 players and tell me which player is better overall and in specific roles.\n\n`;
+  o += `Requirements for your answer:\n`;
+  o += `1. Give a quick winner summary.\n`;
+  o += `2. Compare pace, finishing, dribbling, passing, physical, and defending with concrete stat references.\n`;
+  o += `3. Recommend best player for ST, LW, and all-around attacking use.\n`;
+  o += `4. Mention playstyle advantages and weaknesses.\n`;
+  o += `5. End with a clear verdict.\n\n`;
+
+  o += `${'━'.repeat(80)}\n`;
+  o += `PLAYERS TO COMPARE (${players.length})\n`;
+  o += `${'━'.repeat(80)}\n\n`;
+
+  players.forEach((player, idx) => {
+    const stats = player.stats || {};
+    o += `▼ Player ${idx + 1}: ${player.name || 'Unknown'}\n`;
+    o += `${'─'.repeat(80)}\n`;
+    o += `Overall: ${player.rating || '?'}\n`;
+    o += `Position: ${player.position || '?'}\n`;
+    if (player.nation) o += `Nation: ${player.nation}\n`;
+    if (player.league) o += `League: ${player.league}\n`;
+    if (player.club) o += `Club: ${player.club}\n`;
+
+    const ps = player.playstyles || [];
+    const psPlus = ps.filter(x => x.endsWith('+'));
+    const psRegular = ps.filter(x => !x.endsWith('+'));
+    o += `PlayStyles+: ${psPlus.length ? psPlus.join(', ') : 'None'}\n`;
+    o += `PlayStyles: ${psRegular.length ? psRegular.join(', ') : 'None'}\n\n`;
+
+    Object.entries(compareStats).forEach(([face, subStats]) => {
+      o += `[${face}: ${stats[face] || '?'}]\n`;
+      subStats.forEach(sub => {
+        if (stats[sub]) o += `  ${sub}: ${stats[sub]}\n`;
+      });
+      o += `\n`;
+    });
+  });
+
+  o += `${'═'.repeat(80)}\n`;
+  o += `OUTPUT FORMAT\n`;
+  o += `${'═'.repeat(80)}\n\n`;
+  o += `Please respond with:\n`;
+  o += `- Best overall player\n`;
+  o += `- Best ST\n`;
+  o += `- Best LW\n`;
+  o += `- Best value recommendation\n`;
+  o += `- Short explanation with the most decisive stats\n`;
 
   return o;
 }

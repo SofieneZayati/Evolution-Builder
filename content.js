@@ -430,6 +430,8 @@ function createExtractButton() {
   // Remove existing button if present (prevents duplicates on SPA navigation)
   const existing = document.getElementById('evo-builder-extract-btn');
   if (existing) existing.remove();
+  const existingCompare = document.getElementById('evo-builder-compare-btn');
+  if (existingCompare) existingCompare.remove();
 
   // Inject styles
   if (!document.getElementById('evo-builder-styles')) {
@@ -471,6 +473,42 @@ function createExtractButton() {
         font-size: 16px;
         filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
       }
+
+      #evo-builder-compare-btn {
+        position: fixed;
+        top: 142px;
+        right: 16px;
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 13px;
+        cursor: pointer;
+        box-shadow: 0 4px 16px rgba(14,165,233,0.35), 0 0 0 1px rgba(255,255,255,0.08) inset;
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        backdrop-filter: blur(8px);
+        white-space: pre-line;
+        line-height: 1.3;
+        letter-spacing: -0.2px;
+      }
+      #evo-builder-compare-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(14,165,233,0.45), 0 0 0 1px rgba(255,255,255,0.12) inset;
+      }
+      #evo-builder-compare-btn:active {
+        transform: translateY(0);
+      }
+      #evo-builder-compare-btn .btn-icon {
+        font-size: 16px;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+      }
     `;
     document.head.appendChild(style);
   }
@@ -478,6 +516,10 @@ function createExtractButton() {
   const button = document.createElement('button');
   button.id = 'evo-builder-extract-btn';
   button.innerHTML = '<span class="btn-icon">⚽</span> Add to Evo Builder';
+
+  const compareButton = document.createElement('button');
+  compareButton.id = 'evo-builder-compare-btn';
+  compareButton.innerHTML = '<span class="btn-icon">⚖️</span> Add to Compare';
 
   button.addEventListener('click', () => {
     const data = detectAndExtract();
@@ -515,7 +557,40 @@ function createExtractButton() {
     }
   });
 
+  compareButton.addEventListener('click', () => {
+    const data = detectAndExtract();
+    if (!data || data.type !== 'player') {
+      showButtonFeedback(compareButton, '❌', 'Open a player page', '#ef4444');
+      return;
+    }
+
+    const summary = `${data.name} (${data.rating} ${data.position})`;
+
+    try {
+      chrome.runtime.sendMessage({ action: 'addComparePlayer', data: data }, (response) => {
+        if (chrome.runtime.lastError) {
+          showButtonFeedback(compareButton, '🔄', 'Reload extension!', '#f97316');
+          return;
+        }
+        if (response && response.success) {
+          if (response.duplicate) {
+            showButtonFeedback(compareButton, '⚠️', 'Already in compare!', '#f97316');
+          } else {
+            showButtonFeedback(compareButton, '✓', summary, '#0284c7');
+          }
+        }
+      });
+    } catch (error) {
+      showButtonFeedback(compareButton, '🔄', 'Reload extension!', '#f97316');
+    }
+  });
+
   document.body.appendChild(button);
+
+  const isPlayerPage = window.location.href.includes('/player/') || window.location.href.includes('/26/player/');
+  if (isPlayerPage) {
+    document.body.appendChild(compareButton);
+  }
 }
 
 function showButtonFeedback(button, icon, message, color) {

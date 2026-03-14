@@ -6,14 +6,23 @@ console.log('EA FC Evolution Builder - Background script loaded');
 // Storage structure
 let extensionData = {
   player: null,
-  evolutions: []
+  evolutions: [],
+  comparePlayers: []
 };
+
+function normalizeData(data) {
+  return {
+    player: data?.player || null,
+    evolutions: Array.isArray(data?.evolutions) ? data.evolutions : [],
+    comparePlayers: Array.isArray(data?.comparePlayers) ? data.comparePlayers : []
+  };
+}
 
 // Load data from storage on startup
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get(['extensionData'], (result) => {
     if (result.extensionData) {
-      extensionData = result.extensionData;
+      extensionData = normalizeData(result.extensionData);
     }
   });
 });
@@ -21,7 +30,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Load data from storage on startup
 chrome.storage.local.get(['extensionData'], (result) => {
   if (result.extensionData) {
-    extensionData = result.extensionData;
+    extensionData = normalizeData(result.extensionData);
   }
 });
 
@@ -50,6 +59,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     }
   }
+
+  // Add compare player data
+  else if (request.action === 'addComparePlayer') {
+    const data = request.data;
+    if (!data || data.type !== 'player') {
+      sendResponse({ success: false, message: 'Invalid compare player data' });
+      return true;
+    }
+
+    const isDuplicate = extensionData.comparePlayers.some(
+      p => p.name && data.name && p.name === data.name
+    );
+
+    if (isDuplicate) {
+      sendResponse({ success: true, duplicate: true, message: 'Player already in compare' });
+    } else {
+      extensionData.comparePlayers.push(data);
+      saveData();
+      sendResponse({ success: true, message: 'Compare player added' });
+    }
+  }
+
+  // Remove compare player by index
+  else if (request.action === 'removeComparePlayer') {
+    const index = request.index;
+    if (index >= 0 && index < extensionData.comparePlayers.length) {
+      extensionData.comparePlayers.splice(index, 1);
+      saveData();
+      sendResponse({ success: true, message: 'Compare player removed' });
+    }
+  }
+
+  // Clear compare player list
+  else if (request.action === 'clearComparePlayers') {
+    extensionData.comparePlayers = [];
+    saveData();
+    sendResponse({ success: true, message: 'Compare players cleared' });
+  }
   
   // Get all stored data
   else if (request.action === 'getData') {
@@ -60,10 +107,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   else if (request.action === 'clearData') {
     extensionData = {
       player: null,
-      evolutions: []
+      evolutions: [],
+      comparePlayers: []
     };
     saveData();
     sendResponse({ success: true, message: 'Data cleared' });
+  }
+
+  // Clear evolutions only
+  else if (request.action === 'clearEvolutions') {
+    extensionData.evolutions = [];
+    saveData();
+    sendResponse({ success: true, message: 'Evolutions cleared' });
   }
   
   // Remove specific evolution
@@ -97,7 +152,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   else if (request.action === 'clearAll') {
     extensionData = {
       player: null,
-      evolutions: []
+      evolutions: [],
+      comparePlayers: []
     };
     saveData();
     sendResponse({ success: true, message: 'All data cleared' });
